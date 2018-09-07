@@ -13,9 +13,9 @@ PortAudio.Net is pre-alpha and actively developed.
 * Create a Nuget package and publish on NuGet.org
 * Investigate distributing native runtimes, subject to licensing and other considerations
 * Support minimally:
-..* Windows x64
-..* Linux x64
+    * Windows x64
+    * Linux x64
 * Potential platform goals include
-..* macOS
-..* Windows & Linux x86
-..* Linux on ARM architectures
+    * macOS
+    * Windows & Linux x86
+    * Linux on ARM architectures
