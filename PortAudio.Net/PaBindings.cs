@@ -120,8 +120,6 @@ namespace PortAudio.Net
         public pa_time_t defaultHighInputLatency;
         public pa_time_t defaultHighOutputLatency;
         public double defaultSampleRate;
-
-        public PaHostApiInfo hostApiInfo => Marshal.PtrToStructure<PaHostApiInfo>(PaBindings.Pa_GetHostApiInfo(hostApi));
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -195,7 +193,7 @@ namespace PortAudio.Net
         public static extern pa_host_api_index_t Pa_HostApiTypeIdToHostApiIndex(PaHostApiTypeId type);
 
         [DllImport("libportaudio", EntryPoint = "Pa_HostApiDeviceIndexToDeviceIndex")]
-        public static extern pa_device_index_t Pa_HostapiDeviceIndexToDeviceIndex(pa_host_api_index_t hostApi, pa_host_api_index_t hostApiDeviceIndex);
+        public static extern pa_device_index_t Pa_HostApiDeviceIndexToDeviceIndex(pa_host_api_index_t hostApi, int hostApiDeviceIndex);
 
         [DllImport("libportaudio", EntryPoint = "Pa_GetLastHostErrorInfo")]
         public static extern IntPtr Pa_GetLastHostErrorInfo();

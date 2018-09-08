@@ -8,11 +8,12 @@ namespace PortAudio.Net.TestApp
     {
         static void Main(string[] args)
         {
+            Console.WriteLine();
+            Console.WriteLine($"Using PortAudio version:\n  {PaLibrary.VersionInfo.versionText}");
+            Console.WriteLine();
+
             using (var paLibrary = PaLibrary.Initialize())
             {
-                Console.WriteLine();
-                Console.WriteLine($"Using PortAudio version:\n  {paLibrary.VersionInfo.versionText}");
-                Console.WriteLine();
                 PrintDevices(paLibrary);
                 
                 double sampleRate = 44100;
@@ -24,8 +25,8 @@ namespace PortAudio.Net.TestApp
                         device = outIndex,
                         channelCount = 1,
                         sampleFormat = PaSampleFormat.paFloat32,
-                        suggestedLatency = paLibrary.GetDeviceInfo(outIndex).defaultHighOutputLatency,
-                        hostApiSpecificStreamInfo = new IntPtr(0)
+                        suggestedLatency = paLibrary.GetDeviceInfo(outIndex).Value.defaultHighOutputLatency,
+                        hostApiSpecificStreamInfo = IntPtr.Zero
                     };
                 
                 var callbackData = new SineCallbackData()
@@ -39,10 +40,10 @@ namespace PortAudio.Net.TestApp
                     sampleRate, 512, PaStreamFlags.paNoFlag,
                     SineCallback, callbackData))
                 {
-                    stream.Start();
+                    stream.StartStream();
                     Console.WriteLine("Press any key to stop...");
                     Console.ReadKey();
-                    stream.Stop();
+                    stream.StopStream();
                 }
             }
         }
@@ -73,8 +74,8 @@ namespace PortAudio.Net.TestApp
             for (int n = 0; n < deviceCount; n++)
             {
                 var row = n + 1;
-                var deviceInfo = paLibrary.GetDeviceInfo(n);
-                var hostApiInfo = deviceInfo.hostApiInfo;
+                var deviceInfo = paLibrary.GetDeviceInfo(n).Value;
+                var hostApiInfo = paLibrary.GetHostApiInfo(deviceInfo.hostApi).Value;
                 data[row, 0] = n.ToString();
                 data[row, 1] = deviceInfo.maxInputChannels.ToString();
                 data[row, 2] = deviceInfo.maxOutputChannels.ToString();

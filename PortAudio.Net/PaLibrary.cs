@@ -3,108 +3,123 @@ using System.Runtime.InteropServices;
 using PortAudio.Net;
 using static PortAudio.Net.PaBindings;
 
+using int_t = System.Int32;
+using long_t = System.Int64;
 using unsigned_long_t = System.UInt64;
 using pa_host_api_index_t = System.Int32;
+using pa_device_index_t = System.Int32;
+using pa_error_t = System.Int32;
 
 namespace PortAudio.Net
 {
     public class PaLibrary : IDisposable
     {
+        public const pa_device_index_t paNoDevice = -1;
+
+        public const pa_error_t paFormatIsSupported = 0;
+
         private bool disposed = false;
 
-        public int Version => (int)Pa_GetVersion();
+        public static int_t Version => Pa_GetVersion();
 
-        public PaVersionInfo VersionInfo => Marshal.PtrToStructure<PaVersionInfo>(Pa_GetVersionInfo());
+        public static PaVersionInfo VersionInfo =>
+            Marshal.PtrToStructure<PaVersionInfo>(Pa_GetVersionInfo());
 
-        public PaDeviceInfo DefaultOutputDevice => Marshal.PtrToStructure<PaDeviceInfo>(Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice()));
-
-        public int DeviceCount => Pa_GetDeviceCount();
-
-        private class StreamCallbackDelegateContainer
-        {
-            private PaStreamCallback streamCallback;
-            private PaSampleFormat inputSampleFormat;
-            private PaSampleFormat outputSampleFormat;
-            int numInputChannels;
-            int numOutputChannels;
-            object userData;
-
-            public unsafe StreamCallbackDelegateContainer (
-                PaStreamCallback streamCallback,
-                PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
-                int numInputChannels, int numOutputChannels, object userData)
-            {
-                this.streamCallback = streamCallback;
-                this.inputSampleFormat = inputSampleFormat;
-                this.outputSampleFormat = outputSampleFormat;
-                this.numInputChannels = numInputChannels;
-                this.numOutputChannels = numOutputChannels;
-                this.userData = userData;
-            }
-
-            public unsafe PaStreamCallbackResult  StreamCallback(
-                void* input, void* output,
-                unsigned_long_t frameCount, IntPtr timeInfo,
-                PaStreamCallbackFlags statusFlags, IntPtr garbage)
-            {
-                return streamCallback(
-                    PaBufferBySampleFormat(inputSampleFormat, input, (int)frameCount, numInputChannels),
-                    PaBufferBySampleFormat(outputSampleFormat, output, (int)frameCount, numOutputChannels),
-                    (int)frameCount, Marshal.PtrToStructure<PaStreamCallbackTimeInfo>(timeInfo),
-                    statusFlags, userData);
-            }
-        }
+        public static string GetErrorText(pa_error_t error) => Pa_GetErrorText(error);
 
         public static PaLibrary Initialize()
         {
             PaErrorException.ThrowIfError(Pa_Initialize());
             return new PaLibrary();
         }
-
-        public PaDeviceInfo GetDeviceInfo(int index)
+        public pa_host_api_index_t HostApiCount
         {
-            if (index < 0 || index >= DeviceCount)
-                throw new ArgumentOutOfRangeException("index");
-            return Marshal.PtrToStructure<PaDeviceInfo>(Pa_GetDeviceInfo(index));
-        }
-
-        private unsafe static PaBuffer PaBufferBySampleFormat(PaSampleFormat sampleFormat, void* pointer, int length, int channels)
-        {
-            switch (sampleFormat & ~PaSampleFormat.paCustomFormat)
+            get
             {
-                case 0:
-                    return null;
-                case PaSampleFormat.paFloat32:
-                    return new PaBuffer<float>(pointer, length, channels);
-                case PaSampleFormat.paInt32:
-                    return new PaBuffer<Int32>(pointer, length, channels);
-                case PaSampleFormat.paInt16:
-                    return new PaBuffer<Int16>(pointer, length, channels);
-                case PaSampleFormat.paInt8:
-                    return new PaBuffer<SByte>(pointer, length, channels);
-                case PaSampleFormat.paUInt8:
-                    return new PaBuffer<Byte>(pointer, length, channels);
-                default:
-                    return new PaBuffer(pointer);
+                var count = Pa_GetHostApiCount();
+                PaErrorException.ThrowIfError(count);
+                return count;
             }
         }
-        
-        // Note: userData object cannot be reconstituted from IntPtr but thunking delegate can curry the userData, bypassing PortAudio with better efficiency
-        private _PaStreamCallback PaStreamCallbackThunk(
-            PaStreamCallback streamCallback,
-            PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
-            int numInputChannels, int numOutputChannels, object userData)
+
+        public pa_host_api_index_t GetDefaultHostApi
+        {
+            get
+            {
+                var index = Pa_GetDefaultHostApi();
+                PaErrorException.ThrowIfError(index);
+                return index;
+            }
+        }
+
+        public PaHostApiInfo? GetHostApiInfo(pa_host_api_index_t hostApi)
+        {
+            var ptr = Pa_GetHostApiInfo(hostApi);
+            if (ptr == IntPtr.Zero)
+                return null;
+            return Marshal.PtrToStructure<PaHostApiInfo>(ptr);
+        }
+
+        public pa_host_api_index_t HostApiTypeIdToHostApiIndex(PaHostApiTypeId type)
+        {
+            var index = Pa_HostApiTypeIdToHostApiIndex(type);
+            PaErrorException.ThrowIfError(index);
+            return index;
+        }
+
+        public pa_device_index_t HostApiDeviceIndexToDeviceIndex(pa_host_api_index_t hostApi, int hostApiDeviceIndex)
+        {
+            var index = Pa_HostApiDeviceIndexToDeviceIndex(hostApi, hostApiDeviceIndex);
+            PaErrorException.ThrowIfError(index);
+            return index;
+        }
+
+        public pa_device_index_t DeviceCount
+        {
+            get
+            {
+                var count = Pa_GetDeviceCount();
+                PaErrorException.ThrowIfError(count);
+                return count;
+            }
+        }
+
+        public PaHostErrorInfo GetLastHostErrorInfo() =>
+            Marshal.PtrToStructure<PaHostErrorInfo>(Pa_GetLastHostErrorInfo());
+
+        public pa_device_index_t? DefaultInputDevice => Pa_GetDefaultInputDevice();
+
+        public pa_device_index_t DefaultOutputDevice => Pa_GetDefaultOutputDevice();
+
+        public PaDeviceInfo? GetDeviceInfo(int device)
+        {
+            var ptr = Pa_GetDeviceInfo(device);
+            if (ptr == IntPtr.Zero)
+                return null;
+            return Marshal.PtrToStructure<PaDeviceInfo>(ptr);
+        }
+
+        public pa_error_t IsFormatSupported(PaStreamParameters? inputParameters, PaStreamParameters? outputParameters, double sampleRate)
         {
             unsafe
             {
-                var container = new StreamCallbackDelegateContainer(
-                    streamCallback,
-                    inputSampleFormat, outputSampleFormat,
-                    numInputChannels, numOutputChannels, userData);
-                return new _PaStreamCallback(container.StreamCallback);
+                PaStreamParameters inputParametersTemp, outputParametersTemp;
+                IntPtr inputParametersPtr = IntPtr.Zero;
+                if (inputParameters.HasValue)
+                {
+                    inputParametersPtr = new IntPtr(&inputParametersTemp);
+                    Marshal.StructureToPtr<PaStreamParameters>(inputParameters.Value, inputParametersPtr, false);
+                }
+                IntPtr outputParametersPtr = IntPtr.Zero;
+                if (outputParameters.HasValue)
+                {
+                    outputParametersPtr = new IntPtr(&outputParametersTemp);
+                    Marshal.StructureToPtr<PaStreamParameters>(outputParameters.Value, outputParametersPtr, false);
+                }
+                return Pa_IsFormatSupported(inputParametersPtr, outputParametersPtr, sampleRate);
             }
         }
-        
+
         public PaStream OpenStream(
             PaStreamParameters? inputParameters, PaStreamParameters? outputParameters,
             double sampleRate, int framesPerBuffer, PaStreamFlags streamFlags,
@@ -123,13 +138,13 @@ namespace PortAudio.Net
             unsafe
             {
                 PaStreamParameters inputParametersTemp, outputParametersTemp;
-                IntPtr inputParametersPtr = new IntPtr(0);
+                IntPtr inputParametersPtr = IntPtr.Zero;
                 if (inputParameters.HasValue)
                 {
                     inputParametersPtr = new IntPtr(&inputParametersTemp);
                     Marshal.StructureToPtr<PaStreamParameters>(inputParameters.Value, inputParametersPtr, false);
                 }
-                IntPtr outputParametersPtr = new IntPtr(0);
+                IntPtr outputParametersPtr = IntPtr.Zero;
                 if (outputParameters.HasValue)
                 {
                     outputParametersPtr = new IntPtr(&outputParametersTemp);
@@ -139,7 +154,7 @@ namespace PortAudio.Net
                     new IntPtr(&stream),
                     inputParametersPtr, outputParametersPtr,
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
-                    streamCallbackThunk, new IntPtr(0)));
+                    streamCallbackThunk, IntPtr.Zero));
             }
             return new PaStream(stream, stream_callback_handle, user_data_handle);
         }
@@ -162,9 +177,29 @@ namespace PortAudio.Net
                     new IntPtr(&stream),
                     numInputChannels, numOutputChannels, sampleFormat,
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
-                    streamCallbackThunk, new IntPtr(0)));
+                    streamCallbackThunk, IntPtr.Zero));
             }
             return new PaStream(stream, stream_callback_handle, user_data_handle);
+        }
+
+        public pa_error_t GetSampleSize(PaSampleFormat format) => Pa_GetSampleSize(format);
+
+        public void Sleep(long_t msec) { Pa_Sleep(msec); }
+        
+        // Note: userData object cannot be reconstituted from IntPtr but thunking delegate can curry the userData, bypassing PortAudio with better efficiency
+        private _PaStreamCallback PaStreamCallbackThunk(
+            PaStreamCallback streamCallback,
+            PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
+            int numInputChannels, int numOutputChannels, object userData)
+        {
+            unsafe
+            {
+                var container = new StreamCallbackDelegateContainer(
+                    streamCallback,
+                    inputSampleFormat, outputSampleFormat,
+                    numInputChannels, numOutputChannels, userData);
+                return new _PaStreamCallback(container.StreamCallback);
+            }
         }
 
         private void Dispose(bool disposing)

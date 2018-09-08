@@ -14,19 +14,11 @@ namespace PortAudio.Net
 
         public PaErrorException(string message, Exception inner) : base(message, inner) { }
         
-        public PaErrorException(pa_error_t error) : base(Pa_GetErrorText(error)) { }
-
-        public static void ThrowIfError()
-        {
-            IntPtr ptr = Pa_GetLastHostErrorInfo();
-            PaHostErrorInfo errorInfo = Marshal.PtrToStructure<PaHostErrorInfo>(ptr);
-            if (errorInfo.errorCode != 0)
-                throw new PaErrorException(errorInfo.errorText);
-        }
+        public PaErrorException(pa_error_t error) : base(PaLibrary.GetErrorText(error)) { }
 
         public static void ThrowIfError(pa_error_t error)
         {
-            if (error != 0)
+            if (error < 0)
                 throw new PaErrorException(error);
         }
     }
