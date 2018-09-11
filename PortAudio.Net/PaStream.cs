@@ -13,8 +13,22 @@ namespace PortAudio.Net
     {
         private bool disposed;
         private IntPtr stream;
-        private GCHandle stream_callback_handle;
-        private GCHandle user_data_handle;
+        private StreamCallbackContainer streamCallbackContainer;
+        private StreamFinishedCallbackContainer streamFinishedCallbackContainer;
+
+        public void SetStreamFinishedCallback(PaStreamFinishedCallback streamFinishedCallback, object userData)
+        {
+            if (streamFinishedCallback == null)
+            {
+                streamFinishedCallbackContainer = null;
+                PaErrorException.ThrowIfError(Pa_SetStreamFinishedCallback(stream, null));
+            }
+            else
+            {
+                streamFinishedCallbackContainer = new StreamFinishedCallbackContainer(streamFinishedCallback, userData);
+                PaErrorException.ThrowIfError(Pa_SetStreamFinishedCallback(stream, streamFinishedCallbackContainer.Callback));
+            }
+        }
 
         public void StartStream()
         {
@@ -88,19 +102,16 @@ namespace PortAudio.Net
 
         public signed_long_t GetStreamWriteAvailable() => Pa_GetStreamWriteAvailable(stream);
 
-        internal PaStream(IntPtr stream, GCHandle streamCallbackHandle, GCHandle userDataHandle)
+        internal PaStream(IntPtr stream, StreamCallbackContainer streamCallbackContainer)
         {
             this.stream = stream;
-            this.stream_callback_handle = streamCallbackHandle;
-            this.user_data_handle = userDataHandle;
+            this.streamCallbackContainer = streamCallbackContainer;
         }        
 
         private void Dispose(bool disposing)
         {
             unsafe
             {
-                stream_callback_handle.Free();
-                user_data_handle.Free();
                 PaErrorException.ThrowIfError(Pa_CloseStream(stream));
             }
         }

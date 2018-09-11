@@ -5,21 +5,19 @@ using unsigned_long_t = System.UInt64;
 
 namespace PortAudio.Net
 {
-    internal class StreamCallbackDelegateContainer
+    internal class StreamCallbackContainer
     {
-        private PaStreamCallback streamCallback;
-        private PaSampleFormat inputSampleFormat;
-        private PaSampleFormat outputSampleFormat;
-        int numInputChannels;
-        int numOutputChannels;
-        object userData;
+        private PaStreamCallback callbackProvider;
+        private PaSampleFormat inputSampleFormat, outputSampleFormat;
+        private int numInputChannels, numOutputChannels;
+        private object userData;
 
-        public unsafe StreamCallbackDelegateContainer (
-            PaStreamCallback streamCallback,
+        public StreamCallbackContainer(
+            PaStreamCallback callbackProvider,
             PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
             int numInputChannels, int numOutputChannels, object userData)
         {
-            this.streamCallback = streamCallback;
+            this.callbackProvider = callbackProvider;
             this.inputSampleFormat = inputSampleFormat;
             this.outputSampleFormat = outputSampleFormat;
             this.numInputChannels = numInputChannels;
@@ -27,12 +25,13 @@ namespace PortAudio.Net
             this.userData = userData;
         }
 
-        public unsafe PaStreamCallbackResult  StreamCallback(
+        // Note: userData object cannot be reconstituted from IntPtr but thunking delegate can curry the userData, bypassing PortAudio with better efficiency
+        public unsafe PaStreamCallbackResult Callback(
             void* input, void* output,
             unsigned_long_t frameCount, IntPtr timeInfo,
             PaStreamCallbackFlags statusFlags, IntPtr garbage)
         {
-            return streamCallback(
+            return callbackProvider(
                 PaBufferBySampleFormat(inputSampleFormat, input, (int)frameCount, numInputChannels),
                 PaBufferBySampleFormat(outputSampleFormat, output, (int)frameCount, numOutputChannels),
                 (int)frameCount, Marshal.PtrToStructure<PaStreamCallbackTimeInfo>(timeInfo),

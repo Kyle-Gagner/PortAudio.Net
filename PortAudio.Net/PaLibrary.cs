@@ -125,15 +125,13 @@ namespace PortAudio.Net
             double sampleRate, int framesPerBuffer, PaStreamFlags streamFlags,
             PaStreamCallback streamCallback, object userData)
         {
-            var streamCallbackThunk = PaStreamCallbackThunk(
+            var streamCallbackContainer = new StreamCallbackContainer(
                 streamCallback,
                 inputParameters.HasValue ? inputParameters.Value.sampleFormat : 0,
                 outputParameters.HasValue ? outputParameters.Value.sampleFormat : 0,
                 inputParameters.HasValue ? inputParameters.Value.channelCount : 0,
                 outputParameters.HasValue ? outputParameters.Value.channelCount : 0,
                 userData);
-            var stream_callback_handle = GCHandle.Alloc(streamCallbackThunk);
-            var user_data_handle = GCHandle.Alloc(userData);
             IntPtr stream;
             unsafe
             {
@@ -154,9 +152,9 @@ namespace PortAudio.Net
                     new IntPtr(&stream),
                     inputParametersPtr, outputParametersPtr,
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
-                    streamCallbackThunk, IntPtr.Zero));
+                    streamCallbackContainer.Callback, IntPtr.Zero));
             }
-            return new PaStream(stream, stream_callback_handle, user_data_handle);
+            return new PaStream(stream, streamCallbackContainer);
         }
         
         public PaStream OpenDefaultStream(
@@ -164,12 +162,10 @@ namespace PortAudio.Net
             double sampleRate, int framesPerBuffer, PaStreamFlags streamFlags,
             PaStreamCallback streamCallback, object userData)
         {
-            var streamCallbackThunk = PaStreamCallbackThunk(
+            var streamCallbackContainer = new StreamCallbackContainer(
                 streamCallback,
                 sampleFormat, sampleFormat,
                 numInputChannels, numOutputChannels, userData);
-            var stream_callback_handle = GCHandle.Alloc(streamCallbackThunk);
-            var user_data_handle = GCHandle.Alloc(userData);
             IntPtr stream;
             unsafe
             {
@@ -177,30 +173,14 @@ namespace PortAudio.Net
                     new IntPtr(&stream),
                     numInputChannels, numOutputChannels, sampleFormat,
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
-                    streamCallbackThunk, IntPtr.Zero));
+                    streamCallbackContainer.Callback, IntPtr.Zero));
             }
-            return new PaStream(stream, stream_callback_handle, user_data_handle);
+            return new PaStream(stream, streamCallbackContainer);
         }
 
         public pa_error_t GetSampleSize(PaSampleFormat format) => Pa_GetSampleSize(format);
 
         public void Sleep(long_t msec) { Pa_Sleep(msec); }
-        
-        // Note: userData object cannot be reconstituted from IntPtr but thunking delegate can curry the userData, bypassing PortAudio with better efficiency
-        private _PaStreamCallback PaStreamCallbackThunk(
-            PaStreamCallback streamCallback,
-            PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
-            int numInputChannels, int numOutputChannels, object userData)
-        {
-            unsafe
-            {
-                var container = new StreamCallbackDelegateContainer(
-                    streamCallback,
-                    inputSampleFormat, outputSampleFormat,
-                    numInputChannels, numOutputChannels, userData);
-                return new _PaStreamCallback(container.StreamCallback);
-            }
-        }
 
         private void Dispose(bool disposing)
         {

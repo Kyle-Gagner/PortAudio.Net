@@ -162,6 +162,8 @@ namespace PortAudio.Net
         int frameCount, PaStreamCallbackTimeInfo timeInfo,
         PaStreamCallbackFlags statusFlags, object userData);
 
+    public delegate void PaStreamFinishedCallback(object userData);
+
     internal class PaBindings
     {
         [DllImport("libportaudio", EntryPoint = "Pa_GetVersion")]

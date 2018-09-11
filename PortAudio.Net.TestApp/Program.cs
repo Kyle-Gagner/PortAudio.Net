@@ -40,6 +40,7 @@ namespace PortAudio.Net.TestApp
                     sampleRate, 512, PaStreamFlags.paNoFlag,
                     SineCallback, callbackData))
                 {
+                    stream.SetStreamFinishedCallback(PrintDoneCallback, "stream finished");
                     stream.StartStream();
                     Console.WriteLine("Press any key to stop...");
                     Console.ReadKey();
@@ -131,6 +132,11 @@ namespace PortAudio.Net.TestApp
             }
             data.osc *= (3 - (data.osc.Real * data.osc.Real + data.osc.Imaginary * data.osc.Imaginary)) / 2;
             return PaStreamCallbackResult.paContinue;
+        }
+
+        private static void PrintDoneCallback(object userData)
+        {
+            Console.WriteLine(userData);
         }
     }
 }
