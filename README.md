@@ -5,7 +5,7 @@ PortAudio.Net is a cross platform .NET wrapper for PortAudio.
 PortAudio.Net is pre-alpha and actively developed.
 
 ## Project Goals
-* Create a P/Invoke wrapper targetting .NET Core
+* Create a P/Invoke wrapper targetting .NET Standard, .NET Core, and .NET Framework
 * Support all un-deprecated functionality in PortAudio
 * Supply a safe API to the greatest extent possible (no resource leaks, crashes, etc.)
 * Follow good .NET patterns in the object model and in resource use, etc.
