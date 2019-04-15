@@ -5,32 +5,46 @@ namespace PortAudio.Net
 {
     public class PaBuffer : IDisposable
     {
-        protected bool disposed = false;
-        protected IntPtr pointer;
-        protected bool hglobal = false;
+        private bool owning;
+        
+        private bool disposed = false;
 
-        unsafe public PaBuffer(void* pointer)
+        private object lockObject = new object();
+
+        public IntPtr Pointer { get; }
+
+        public int Frames { get; }
+
+        public int Channels { get; }
+
+        private PaBuffer(int channels, int frames)
         {
-            this.pointer = new IntPtr(pointer);
+            Channels = channels;
+            Frames = frames;
         }
 
-        public static explicit operator IntPtr(PaBuffer buffer) => buffer.pointer;
+        public PaBuffer(int size, int channels, int frames)
+        {
+            Pointer = Marshal.AllocHGlobal(size);
+            owning = true;
+        }
 
-        public unsafe static explicit operator void*(PaBuffer buffer) => (void*)buffer.pointer.ToPointer();
+        public PaBuffer(IntPtr pointer, int channels, int frames) : this(channels, frames)
+        {
+            Pointer = pointer;
+            owning = false;
+        }
 
         private void Dispose(bool disposing)
         {
-            unsafe
-            {
-                Marshal.FreeHGlobal(pointer);
-            }
+            Marshal.FreeHGlobal(Pointer);
         }
 
         public void Dispose()
         {
-            if (hglobal)
+            if (owning)
             {
-                lock (this)
+                lock (lockObject)
                 {
                     if (!disposed)
                     {
@@ -48,7 +62,7 @@ namespace PortAudio.Net
 
         ~PaBuffer()
         {
-            if (hglobal)
+            if (owning)
             {
                 if (!disposed)
                 {
@@ -61,9 +75,10 @@ namespace PortAudio.Net
 
     public class PaBuffer<T>: PaBuffer where T: unmanaged
     {
-        private int length;
-        int channels;
-        private int size;
+        public PaBuffer(int channels, int frames) :
+            base(channels * frames * Marshal.SizeOf(typeof(T)), channels, frames) {}
+
+        public PaBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames) {}
 
         public Span<T> Span
         {
@@ -71,56 +86,50 @@ namespace PortAudio.Net
             {
                 unsafe
                 {
-                    return new Span<T>(pointer.ToPointer(), (int)size);
+                    return new Span<T>(Pointer.ToPointer(), Channels * Frames);
+                }
+            }
+        }
+    }
+
+    public class PaNonInterleavedBuffer<T> : PaBuffer where T: unmanaged
+    {
+        private PaBuffer<T>[] channelBuffers;
+
+        public PaNonInterleavedBuffer(int channels, int frames) :
+            base(channels * Marshal.SizeOf(typeof(T)), channels, frames)
+        {
+            channelBuffers = new PaBuffer<T>[Channels];
+            unsafe
+            {
+                IntPtr* ptr = (IntPtr*)Pointer.ToPointer();
+                for (int channelIndex = 0; channelIndex < Channels; channelIndex++)
+                {
+                    var channelBuffer = new PaBuffer<T>(1, Frames);
+                    channelBuffers[channelIndex] = channelBuffer;
+                    ptr[channelIndex] = channelBuffer.Pointer;
                 }
             }
         }
 
-        public int Length => length;
-
-        public int Channels => channels;
-
-        public unsafe PaBuffer(int length, int channels) : base((void*)0)
+        public unsafe PaNonInterleavedBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames)
         {
-            var array = new T[length];
-            this.length = length;
+            channelBuffers = new PaBuffer<T>[Channels];
             unsafe
             {
-                this.size = sizeof(T) * length * channels;
-            }
-            this.pointer = Marshal.AllocHGlobal(this.size);
-            this.hglobal = true;
-        }
-
-        public unsafe PaBuffer(void* pointer, int length, int channels) : base(pointer)
-        {
-            this.length = length;
-            this.channels = channels;
-            this.size = sizeof(T) * length * channels;
-        }
-
-        public PaBuffer Slice(int start)
-        {
-            if (start > length)
-                throw new ArgumentOutOfRangeException("start");
-            unsafe
-            {
-                return new PaBuffer<T>((T*)pointer.ToPointer() + start, length - start, channels);
+                IntPtr* ptr = (IntPtr*)Pointer.ToPointer();
+                for (int channelIndex = 0; channelIndex < Channels; channelIndex++)
+                    channelBuffers[channelIndex] = new PaBuffer<T>(ptr[channelIndex], channels, frames);
             }
         }
 
-        public PaBuffer Slice(int start, int length)
+        public PaBuffer<T> GetChannel(int channelIndex)
         {
-            if (start > this.length)
-                throw new ArgumentOutOfRangeException("start");
-            if (length > this.length - start)
-                throw new ArgumentOutOfRangeException("length");
-            unsafe
-            {
-                return new PaBuffer<T>((T*)pointer.ToPointer() + start, length - start, channels);
-            }
+            if (channelIndex < 0 || channelIndex >= Channels)
+                throw new ArgumentException(
+                    "Channel indices must be between 0 and Channels - 1 inclusive.",
+                    nameof(channelIndex));
+            return channelBuffers[channelIndex];
         }
-
-        public static unsafe explicit operator T*(PaBuffer<T> buffer) => (T*)buffer.pointer.ToPointer();
     }
 }

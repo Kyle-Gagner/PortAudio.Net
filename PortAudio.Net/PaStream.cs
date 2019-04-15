@@ -12,7 +12,12 @@ namespace PortAudio.Net
     public class PaStream : IDisposable
     {
         private bool disposed;
-        private IntPtr stream;
+        protected IntPtr stream;
+        protected PaSampleFormat inputSampleFormat, outputSampleFormat;
+        protected int numInputChannels, numOutputChannels;
+        // native to managed callback thunks are allocated in unmanaged memory by the runtime so it is not necessary to
+        // pin the delegates as they may be relocated safely, however it is necessary to prevent garbage collection
+        // by keeping around at least one reference
         private StreamCallbackContainer streamCallbackContainer;
         private StreamFinishedCallbackContainer streamFinishedCallbackContainer;
 
@@ -102,7 +107,10 @@ namespace PortAudio.Net
 
         public signed_long_t GetStreamWriteAvailable() => Pa_GetStreamWriteAvailable(stream);
 
-        internal PaStream(IntPtr stream, StreamCallbackContainer streamCallbackContainer)
+        internal PaStream(
+            IntPtr stream, StreamCallbackContainer streamCallbackContainer,
+            PaSampleFormat inputSampleFormat, PaSampleFormat outputSampleFormat,
+            int numInputChannels, int numOutputChannels)
         {
             this.stream = stream;
             this.streamCallbackContainer = streamCallbackContainer;

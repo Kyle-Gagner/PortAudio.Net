@@ -22,6 +22,8 @@ namespace PortAudio.Net
 
         public static int_t Version => Pa_GetVersion();
 
+        public const int paFramesPerBufferUnspecified = 0;
+
         public static PaVersionInfo VersionInfo =>
             Marshal.PtrToStructure<PaVersionInfo>(Pa_GetVersionInfo());
 
@@ -154,7 +156,46 @@ namespace PortAudio.Net
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
                     streamCallbackContainer.Callback, IntPtr.Zero));
             }
-            return new PaStream(stream, streamCallbackContainer);
+            return new PaStream(
+                stream, streamCallbackContainer,
+                inputParameters.HasValue ? inputParameters.Value.sampleFormat : 0,
+                outputParameters.HasValue ? outputParameters.Value.sampleFormat : 0,
+                inputParameters.HasValue ? inputParameters.Value.channelCount : 0,
+                outputParameters.HasValue ? outputParameters.Value.channelCount : 0);
+        }
+
+        public PaBlockingStream OpenStream(
+            PaStreamParameters? inputParameters, PaStreamParameters? outputParameters,
+            double sampleRate, int framesPerBuffer, PaStreamFlags streamFlags)
+        {
+            IntPtr stream;
+            unsafe
+            {
+                PaStreamParameters inputParametersTemp, outputParametersTemp;
+                IntPtr inputParametersPtr = IntPtr.Zero;
+                if (inputParameters.HasValue)
+                {
+                    inputParametersPtr = new IntPtr(&inputParametersTemp);
+                    Marshal.StructureToPtr<PaStreamParameters>(inputParameters.Value, inputParametersPtr, false);
+                }
+                IntPtr outputParametersPtr = IntPtr.Zero;
+                if (outputParameters.HasValue)
+                {
+                    outputParametersPtr = new IntPtr(&outputParametersTemp);
+                    Marshal.StructureToPtr<PaStreamParameters>(outputParameters.Value, outputParametersPtr, false);
+                }
+                PaErrorException.ThrowIfError(Pa_OpenStream(
+                    new IntPtr(&stream),
+                    inputParametersPtr, outputParametersPtr,
+                    sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
+                    null, IntPtr.Zero));
+            }
+            return new PaBlockingStream(
+                stream,
+                inputParameters.HasValue ? inputParameters.Value.sampleFormat : 0,
+                outputParameters.HasValue ? outputParameters.Value.sampleFormat : 0,
+                inputParameters.HasValue ? inputParameters.Value.channelCount : 0,
+                outputParameters.HasValue ? outputParameters.Value.channelCount : 0);
         }
         
         public PaStream OpenDefaultStream(
@@ -175,7 +216,25 @@ namespace PortAudio.Net
                     sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
                     streamCallbackContainer.Callback, IntPtr.Zero));
             }
-            return new PaStream(stream, streamCallbackContainer);
+            return new PaStream(
+                stream, streamCallbackContainer,
+                sampleFormat, sampleFormat, numInputChannels, numOutputChannels);
+        }
+
+        public PaBlockingStream OpenDefaultStream(
+            int numInputChannels, int numOutputChannels, PaSampleFormat sampleFormat,
+            double sampleRate, int framesPerBuffer, PaStreamFlags streamFlags)
+        {
+            IntPtr stream;
+            unsafe
+            {
+                PaErrorException.ThrowIfError(Pa_OpenDefaultStream(
+                    new IntPtr(&stream),
+                    numInputChannels, numOutputChannels, sampleFormat,
+                    sampleRate, (unsigned_long_t)framesPerBuffer, streamFlags,
+                    null, IntPtr.Zero));
+            }
+            return new PaBlockingStream(stream, sampleFormat, sampleFormat, numInputChannels, numOutputChannels);
         }
 
         public pa_error_t GetSampleSize(PaSampleFormat format) => Pa_GetSampleSize(format);
