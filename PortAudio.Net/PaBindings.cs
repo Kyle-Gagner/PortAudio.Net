@@ -1,3 +1,32 @@
+/* The code in this file is adapted from the PortAudio Portable Real-Time Audio Library and is dual licensed under
+ * PortAudio.Net's MPL-2.0 licensing terms and PortAudio Portable Real-Time Audio Library's MIT Expat license.
+ *
+ * PortAudio Portable Real-Time Audio Library
+ * Original work Copyright (c) 1999-2011 Ross Bencina, Phil Burk
+ * Modified work Copyright (c) 2019 Kyle Gagner
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+ * WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ *
+ * The text above constitutes the entire PortAudio license; however, the PortAudio community also makes the following
+ * non-binding requests:
+ *
+ * Any person wishing to distribute modifications to the Software is requested to send the modifications to the original
+ * developer so that they can be incorporated into the canonical version. It is also requested that these non-binding
+ * requests be included along with the license above.
+ */
+
 using System;
 using System.Runtime.InteropServices;
 
@@ -17,6 +46,16 @@ using signed_long_t = System.Int64;
 
 namespace PortAudio.Net
 {
+    /// <summary>
+    /// Unchanging unique identifiers for each supported host API. This type is used in the
+    /// <see cref="PaHostApiInfo"/> structure. The values are guaranteed to be unique and to never change, thus allowing
+    /// code to be written that conditionally uses host API specific extensions. New type ids will be allocated when
+    /// support for a host API reaches "public alpha" status, prior to that developers should use the paInDevelopment
+    /// type id.
+    /// </summary>
+    /// <remarks>
+    /// This enum has an exact equivalent enum in the underlying PortAudio library.
+    /// </remarks>
     public enum PaHostApiTypeId : enum_default_t
     {
         paInDevelopment   =  0,
@@ -35,6 +74,30 @@ namespace PortAudio.Net
         paAudioScienceHPI = 14
     }
 
+    /// <summary>
+    /// A type used to specify one or more sample formats. Each value indicates a possible format for sound data passed
+    /// to and from <see cref="PaStreamCallback"/>, <see cref="PaBlockingStream.ReadStream(PaBuffer)"/>,
+    /// <see cref="PaBlockingStream.WriteStream(PaBuffer)"/>, and other overloads of ReadStream and WriteStream.
+    /// 
+    /// The standard formats <see cref="PaSampleFormat.paFloat32"/>, <see cref="PaSampleFormat.paInt16"/>,
+    /// <see cref="PaSampleFormat.paInt32"/>, <see cref="PaSampleFormat.paInt24"/>, <see cref="PaSampleFormat.paInt8"/>
+    /// and <see cref="PaSampleFormat.aUInt8"/> are usually implemented by all implementations.
+    ///
+    /// The floating point representation (<see cref="PaSampleFormat.paFloat32"/>) uses +1.0 and -1.0 as the maximum and
+    /// minimum respectively.
+    /// 
+    /// paUInt8 is an unsigned 8 bit format where 128 is considered "ground"
+    ///
+    /// The paNonInterleaved flag indicates that audio data is passed as a <see cref="PaNonInterleavedBuffer&lt;T&gt;"/>
+    /// containing an array of pointers to separate buffers, one buffer for each channel.static Usually, when this flag
+    /// is not used, audio data is passed as a single <see cref="PaBuffer&lt;T&gt;"/> with all channels interleaved. The
+    /// type parameter <code>T</code> is determined by the format.
+    /// 
+    /// Custom formats are represented by the base class <see cref="PaBuffer"/> regardless of the paNonInterleaved flag.
+    /// </summary>
+    /// <remarks>
+    /// This enum has an integer typedef equivalent in the underlying PortAudio library.
+    /// </remarks>
     public enum PaSampleFormat : pa_sample_format_t
     {
         paFloat32        = 0x00000001,
@@ -195,7 +258,8 @@ namespace PortAudio.Net
         public static extern pa_host_api_index_t Pa_HostApiTypeIdToHostApiIndex(PaHostApiTypeId type);
 
         [DllImport("libportaudio", EntryPoint = "Pa_HostApiDeviceIndexToDeviceIndex")]
-        public static extern pa_device_index_t Pa_HostApiDeviceIndexToDeviceIndex(pa_host_api_index_t hostApi, int hostApiDeviceIndex);
+        public static extern pa_device_index_t Pa_HostApiDeviceIndexToDeviceIndex(
+            pa_host_api_index_t hostApi, int hostApiDeviceIndex);
 
         [DllImport("libportaudio", EntryPoint = "Pa_GetLastHostErrorInfo")]
         public static extern IntPtr Pa_GetLastHostErrorInfo();
@@ -213,7 +277,8 @@ namespace PortAudio.Net
         public static extern IntPtr Pa_GetDeviceInfo(pa_device_index_t device);
 
         [DllImport("libportaudio", EntryPoint = "Pa_IsFormatSupported")]
-        public static extern pa_error_t Pa_IsFormatSupported(IntPtr inputParameters, IntPtr outputParameters, double sampleRate);
+        public static extern pa_error_t Pa_IsFormatSupported(
+            IntPtr inputParameters, IntPtr outputParameters, double sampleRate);
 
         [DllImport("libportaudio", EntryPoint = "Pa_OpenStream")]
         public static extern pa_error_t Pa_OpenStream(
@@ -233,7 +298,8 @@ namespace PortAudio.Net
         public static extern pa_error_t Pa_CloseStream(IntPtr stream);
 
         [DllImport("libportaudio", EntryPoint = "Pa_SetStreamFinishedCallback")]
-        public static extern pa_error_t Pa_SetStreamFinishedCallback(IntPtr stream, _PaStreamFinishedCallback streamFinishedCallback);
+        public static extern pa_error_t Pa_SetStreamFinishedCallback(
+            IntPtr stream, _PaStreamFinishedCallback streamFinishedCallback);
 
         [DllImport("libportaudio", EntryPoint = "Pa_StartStream")]
         public static extern pa_error_t Pa_StartStream(IntPtr stream);
