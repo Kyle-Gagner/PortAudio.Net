@@ -12,7 +12,7 @@ namespace PortAudio.Net
             int numInputChannels, int numOutputChannels) :
             base(stream, null, inputSampleFormat, outputSampleFormat, numInputChannels, numOutputChannels) {}
 
-        public unsafe void ReadStream<T>(PaBuffer buffer) =>
+        public unsafe void ReadStream(PaBuffer buffer) =>
             ReadStreamPrivate(buffer, isUnsafe: true);
 
         public void ReadStream<T>(PaBuffer<T> buffer) where T: unmanaged =>
@@ -21,7 +21,7 @@ namespace PortAudio.Net
         public void ReadStream<T>(PaNonInterleavedBuffer<T> buffer) where T: unmanaged =>
             ReadStreamPrivate(buffer, isNonInterleaved: true);
 
-        public unsafe void WriteStream<T>(PaBuffer buffer) =>
+        public unsafe void WriteStream(PaBuffer buffer) =>
             WriteStreamPrivate(buffer, isUnsafe: true);
 
         public void WriteStream<T>(PaBuffer<T> buffer) where T: unmanaged =>
