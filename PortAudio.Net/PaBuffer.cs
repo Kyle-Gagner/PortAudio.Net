@@ -5,16 +5,40 @@ namespace PortAudio.Net
 {
     public class PaBuffer : IDisposable
     {
-        private bool owning;
+        /// <summary>
+        /// Indicates whether this object owns memory at Pointer which has been allocated from the unmanaged heap
+        /// </summary>
+        private bool owning = false;
+
+        /// <summary>
+        /// This handle will have a value if Pointer refers to a pinned object
+        /// </summary>
+        private GCHandle? handle = null;
         
+        /// <summary>
+        /// Set true on disposal to protect from accidentally trying to free resources multiple times
+        /// </summary>
         private bool disposed = false;
 
+        /// <summary>
+        /// An object used as a lock to ensure thread safety during object disposal
+        /// </summary>
         private object lockObject = new object();
 
+        /// <summary>
+        /// A pointer to the contents of the buffer, either supplied externally, allocated on the unmanaged heap, or
+        /// from a pinned array.
+        /// </summary>
         public IntPtr Pointer { get; }
 
+        /// <summary>
+        /// The number of sample frames in the buffer.
+        /// </summary>
         public int Frames { get; }
 
+        /// <summary>
+        /// The number of channels of sound data in the buffer.
+        /// </summary>
         public int Channels { get; }
 
         private PaBuffer(int channels, int frames)
@@ -23,63 +47,61 @@ namespace PortAudio.Net
             Frames = frames;
         }
 
-        public PaBuffer(int size, int channels, int frames)
+        public PaBuffer(int size, int channels, int frames) : this(channels, frames)
         {
             Pointer = Marshal.AllocHGlobal(size);
             owning = true;
         }
 
-        public PaBuffer(IntPtr pointer, int channels, int frames) : this(channels, frames)
+        public PaBuffer(Array array, int channels, int frames) : this(channels, frames)
         {
-            Pointer = pointer;
-            owning = false;
+            CheckArrayDimensions(array);
+            handle = GCHandle.Alloc(array, GCHandleType.Pinned);
+            Pointer = handle.Value.AddrOfPinnedObject();
         }
 
-        private void Dispose(bool disposing)
+        public unsafe PaBuffer(IntPtr pointer, int channels, int frames) : this(channels, frames)
         {
-            Marshal.FreeHGlobal(Pointer);
+            Pointer = pointer;
+        }
+
+        protected void CheckArrayDimensions(Array array)
+        {
+            if (array.Length != Channels * Frames)
+                throw new ArgumentException(
+                    "The array is expected to contain exactly as many elements as the buffer, "+
+                    "i.e. array.Length == channels * frames.",
+                    nameof(array));
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            lock (lockObject)
+            {
+                if (disposed)
+                    return;
+                disposed = true;
+            }
+            if (owning)
+                Marshal.FreeHGlobal(Pointer);
+            else if (handle.HasValue)
+                handle.Value.Free();
         }
 
         public void Dispose()
         {
-            if (owning)
-            {
-                lock (lockObject)
-                {
-                    if (!disposed)
-                    {
-                        disposed = true;
-                        Dispose(true);
-                        GC.SuppressFinalize(this);
-                    }
-                }
-            }
-            else
-            {
-                GC.SuppressFinalize(this);
-            }
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         ~PaBuffer()
         {
-            if (owning)
-            {
-                if (!disposed)
-                {
-                    disposed = true;
-                    Dispose(false);
-                }
-            }
+            Dispose(false);
         }
     }
 
     public class PaBuffer<T>: PaBuffer where T: unmanaged
     {
-        public PaBuffer(int channels, int frames) :
-            base(channels * frames * Marshal.SizeOf(typeof(T)), channels, frames) {}
-
-        public PaBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames) {}
-
         public Span<T> Span
         {
             get
@@ -90,6 +112,108 @@ namespace PortAudio.Net
                 }
             }
         }
+
+        private unsafe int Size => Channels * Frames * sizeof(T);
+
+        public PaBuffer(int channels, int frames) :
+            base(channels * frames * Marshal.SizeOf(typeof(T)), channels, frames) {}
+
+        public unsafe PaBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames) {}
+
+        public PaBuffer(T[] array, int channels, int frames) : base(array, channels, frames) {}
+
+        public PaBuffer(T[,] array, int channels, int frames) : base(array, channels, frames)
+        {
+            try
+            {
+                CheckArrayDimensions(array);
+            }
+            catch
+            {
+                // unfortunately the base constructor will have already pinned the array, which must be freed
+                Dispose();
+            }
+        }
+
+        private void CheckArrayDimensions(T[,] array)
+        {
+            if (array.GetLength(0) != Frames)
+                throw new ArgumentException(
+                    "The length of the array's 0th dimension is expected to match the number of frames, " +
+                    "i.e. array.GetLength(0) == frames.",
+                    nameof(array));
+            if (array.GetLength(1) != Channels)
+                throw new ArgumentException(
+                    "The length of the array's 1st dimension is expected to match the number of channels, " +
+                    "i.e. array.GetLength(1) == channels.",
+                    nameof(array));
+        }
+
+        private unsafe void GetData(T* ptr) => Buffer.MemoryCopy(Pointer.ToPointer(), (void*)ptr, Size, Size);
+
+        private unsafe void SetData(T* ptr) => Buffer.MemoryCopy((void*)ptr, Pointer.ToPointer(), Size, Size);
+        
+        public void GetArrayData(T[] array)
+        {
+            CheckArrayDimensions(array);
+            unsafe
+            {
+                fixed (T* ptr = array)
+                {
+                    GetData(ptr);
+                }
+            }
+        }
+
+        public void GetArrayData(T[,] array)
+        {
+            CheckArrayDimensions(array);
+            unsafe
+            {
+                fixed (T* ptr = array)
+                {
+                    GetData(ptr);
+                }
+            }
+        }
+
+        public void SetArrayData(T[] array)
+        {
+            CheckArrayDimensions(array);
+            unsafe
+            {
+                fixed (T* ptr = array)
+                {
+                    SetData(ptr);
+                }
+            }
+        }
+
+        public void SetArrayData(T[,] array)
+        {
+            CheckArrayDimensions(array);
+            unsafe
+            {
+                fixed (T* ptr = array)
+                {
+                    SetData(ptr);
+                }
+            }
+        }
+
+        public T[] GetArray1D()
+        {
+            T[] array = new T[Channels * Frames];
+            GetArrayData(array);
+            return array;
+        }
+
+        public T[,] GetArray2D()
+        {
+            T[,] array = new T[Frames, Channels];
+            GetArrayData(array);
+            return array;
+        }
     }
 
     public class PaNonInterleavedBuffer<T> : PaBuffer where T: unmanaged
@@ -97,7 +221,7 @@ namespace PortAudio.Net
         private PaBuffer<T>[] channelBuffers;
 
         public PaNonInterleavedBuffer(int channels, int frames) :
-            base(channels * Marshal.SizeOf(typeof(T)), channels, frames)
+            base(channels * Marshal.SizeOf(typeof(IntPtr)), channels, frames)
         {
             channelBuffers = new PaBuffer<T>[Channels];
             unsafe
@@ -115,11 +239,43 @@ namespace PortAudio.Net
         public unsafe PaNonInterleavedBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames)
         {
             channelBuffers = new PaBuffer<T>[Channels];
+            IntPtr* ptr = (IntPtr*)Pointer.ToPointer();
+            for (int channelIndex = 0; channelIndex < Channels; channelIndex++)
+                channelBuffers[channelIndex] = new PaBuffer<T>(ptr[channelIndex], channels, frames);
+        }
+
+        public PaNonInterleavedBuffer(T[][] array, int channels, int frames) :
+            base(channels * Marshal.SizeOf(typeof(IntPtr)), channels, frames)
+        {
+            try
+            {
+                if (array.Length != channels)
+                    throw new ArgumentException(
+                        "The length of the jagged array is expected to match the number of channels, " +
+                        "i.e. array.Length == channels.",
+                        nameof(array));
+                for (int channelIndex = 0; channelIndex < Channels; channelIndex++)
+                    if (array[channelIndex].Length != frames)
+                        throw new ArgumentException(
+                            "The length of each array in the jagged array is expected to match the number of frames, " +
+                            "i.e. array[channel].Length == frames, for all channel = 1 ... channel = Channels - 1.",
+                            nameof(array));
+            }
+            catch
+            {
+                // unfortunately the base constructor will already have allocated memory, which must be freed
+                Dispose();
+            }
+            channelBuffers = new PaBuffer<T>[Channels];
             unsafe
             {
                 IntPtr* ptr = (IntPtr*)Pointer.ToPointer();
                 for (int channelIndex = 0; channelIndex < Channels; channelIndex++)
-                    channelBuffers[channelIndex] = new PaBuffer<T>(ptr[channelIndex], channels, frames);
+                {
+                    var channelBuffer = new PaBuffer<T>(array[channelIndex], 1, frames);
+                    channelBuffers[channelIndex] = channelBuffer;
+                    ptr[channelIndex] = channelBuffer.Pointer;
+                }
             }
         }
 
