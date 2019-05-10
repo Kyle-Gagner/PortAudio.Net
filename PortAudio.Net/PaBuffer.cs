@@ -41,18 +41,43 @@ namespace PortAudio.Net
         /// </summary>
         public int Channels { get; }
 
+        /// <summary>
+        /// Initializes the Channels and Frames of a new PaBuffer
+        /// </summary>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         private PaBuffer(int channels, int frames)
         {
             Channels = channels;
             Frames = frames;
         }
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer"/> backed by memory allocated on the unmanaged heap for the
+        /// lifetime of the buffer until it is disposed.
+        /// </summary>
+        /// <param name="size">The physical size in bytes to allocate for the buffer</param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public PaBuffer(int size, int channels, int frames) : this(channels, frames)
         {
             Pointer = Marshal.AllocHGlobal(size);
             owning = true;
         }
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer"/> backed by an array object which is pinned for the lifetime
+        /// of the buffer until it is disposed. Modifying data in the buffer alters the data in the underlying array.
+        /// </summary>
+        /// <remarks>
+        /// Pinning large objects can severely affect the efficiency of the runtime's garbage collector. Objects
+        /// constructed by this method should be disposed as soon as possible.
+        /// </remarks>
+        /// <param name="array">
+        /// The array used to back the buffer containing exactly <c>Frames * Channels</c> elements
+        /// </param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public PaBuffer(Array array, int channels, int frames) : this(channels, frames)
         {
             CheckArrayDimensions(array);
@@ -60,6 +85,13 @@ namespace PortAudio.Net
             Pointer = handle.Value.AddrOfPinnedObject();
         }
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer"/> backed by arbitrary memory. No action is taken upon
+        /// disposal.
+        /// </summary>
+        /// <param name="pointer">A pointer to the memory used by the buffer</param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public unsafe PaBuffer(IntPtr pointer, int channels, int frames) : this(channels, frames)
         {
             Pointer = pointer;
@@ -88,6 +120,7 @@ namespace PortAudio.Net
                 handle.Value.Free();
         }
 
+        /// </inheritdoc>
         public void Dispose()
         {
             Dispose(true);
@@ -102,6 +135,16 @@ namespace PortAudio.Net
 
     public class PaBuffer<T>: PaBuffer where T: unmanaged
     {
+
+        #if NETCOREAPP
+
+        /// <summary>
+        /// Gets a span for the underlying memory backing the buffer.
+        /// </summary>
+        /// <remarks>
+        /// Due to its safety and efficiency, <see cref="Span<T>"/> is the preferred means of accessing the memory.
+        /// However, this property is not available in .NET Framework, only .NET Core.
+        /// </remarks>
         public Span<T> Span
         {
             get
@@ -113,15 +156,59 @@ namespace PortAudio.Net
             }
         }
 
+        #endif
+
         private unsafe int Size => Channels * Frames * sizeof(T);
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="PaBuffer<T>"/> backed by memory allocated on the unmanaged heap for
+        /// the lifetime of the buffer until it is disposed.
+        /// </summary>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public PaBuffer(int channels, int frames) :
             base(channels * frames * Marshal.SizeOf(typeof(T)), channels, frames) {}
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer<T>"/> backed by arbitrary memory. No action is taken upon
+        /// disposal.
+        /// </summary>
+        /// <param name="pointer">A pointer to the memory used by the buffer</param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public unsafe PaBuffer(IntPtr pointer, int channels, int frames) : base(pointer, channels, frames) {}
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer<T>"/> backed by an array object which is pinned for the
+        /// lifetime of the buffer until it is disposed. Modifying data in the buffer alters the data in the underlying
+        /// array.
+        /// </summary>
+        /// <remarks>
+        /// Pinning large objects can severely affect the efficiency of the runtime's garbage collector. Objects
+        /// constructed by this method should be disposed as soon as possible.
+        /// </remarks>
+        /// <param name="array">
+        /// The array used to back the buffer containing exactly <c>Frames * Channels</c> elements.
+        /// </param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public PaBuffer(T[] array, int channels, int frames) : base(array, channels, frames) {}
 
+        /// <summary>
+        /// Initializes an instance of <see cref="PaBuffer<T>"/> backed by an array object which is pinned for the
+        /// lifetime of the buffer until it is disposed. Modifying data in the buffer alters the data in the underlying
+        /// array.
+        /// </summary>
+        /// <remarks>
+        /// Pinning large objects can severely affect the efficiency of the runtime's garbage collector. Objects
+        /// constructed by this method should be disposed as soon as possible.
+        /// </remarks>
+        /// <param name="array">
+        /// The array used to back the buffer containing exactly <c>Frames</c> elements in the first dimension, and
+        /// <c>Channels</c> elements in the second.
+        /// </param>
+        /// <param name="channels">The number of logical data channels</param>
+        /// <param name="frames">The number of logical data frames</param>
         public PaBuffer(T[,] array, int channels, int frames) : base(array, channels, frames)
         {
             try
@@ -149,10 +236,18 @@ namespace PortAudio.Net
                     nameof(array));
         }
 
-        private unsafe void GetData(T* ptr) => Buffer.MemoryCopy(Pointer.ToPointer(), (void*)ptr, Size, Size);
+        /// <summary>
+        /// Copies the data from the buffer to a memory location specified.
+        /// </summary>
+        /// <param name="pointer">A pointer to the memory location the data will be copied to</param>
+        private unsafe void GetData(T* pointer) => Buffer.MemoryCopy(Pointer.ToPointer(), (void*)pointer, Size, Size);
 
-        private unsafe void SetData(T* ptr) => Buffer.MemoryCopy((void*)ptr, Pointer.ToPointer(), Size, Size);
-        
+        /// <summary>
+        /// Copies data from a memory location specified into the entire buffer.
+        /// </summary>
+        /// <param name="pointer">A pointer to the memory location the data will be copied from</param>
+        private unsafe void SetData(T* pointer) => Buffer.MemoryCopy((void*)pointer, Pointer.ToPointer(), Size, Size);
+
         public void GetArrayData(T[] array)
         {
             CheckArrayDimensions(array);

@@ -176,8 +176,8 @@ namespace PortAudio.Net
         [MarshalAs(UnmanagedType.LPStr)]
         public string name;
         public pa_host_api_index_t hostApi;
-        public int maxInputChannels;
-        public int maxOutputChannels;
+        public int_t maxInputChannels;
+        public int_t maxOutputChannels;
         public pa_time_t defaultLowInputLatency;
         public pa_time_t defaultLowOutputLatency;
         public pa_time_t defaultHighInputLatency;
@@ -189,7 +189,7 @@ namespace PortAudio.Net
     public struct PaStreamParameters
     {
         public pa_device_index_t device;
-        public int channelCount;
+        public int_t channelCount;
         public PaSampleFormat sampleFormat;
         public pa_time_t suggestedLatency;
         public IntPtr hostApiSpecificStreamInfo;
@@ -212,7 +212,6 @@ namespace PortAudio.Net
         public double sampleRate;
     }
 
-    //[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal unsafe delegate PaStreamCallbackResult _PaStreamCallback(
         void* input, void* output,
         unsigned_long_t frameCount, IntPtr timeInfo,
@@ -222,7 +221,7 @@ namespace PortAudio.Net
 
     public delegate PaStreamCallbackResult PaStreamCallback(
         PaBuffer input, PaBuffer output,
-        int frameCount, PaStreamCallbackTimeInfo timeInfo,
+        int_t frameCount, PaStreamCallbackTimeInfo timeInfo,
         PaStreamCallbackFlags statusFlags, object userData);
 
     public delegate void PaStreamFinishedCallback(object userData);
@@ -290,7 +289,7 @@ namespace PortAudio.Net
         [DllImport("libportaudio", EntryPoint = "Pa_OpenDefaultStream")]
         public static extern pa_error_t Pa_OpenDefaultStream(
             IntPtr stream,
-            int_t numInputChannels, int numOutputChannels, PaSampleFormat sampleFormat,
+            int_t numInputChannels, int_t numOutputChannels, PaSampleFormat sampleFormat,
             double sampleRate, unsigned_long_t framesPerBuffer, PaStreamFlags streamFlags,
             _PaStreamCallback streamCallback, IntPtr userData);
         
