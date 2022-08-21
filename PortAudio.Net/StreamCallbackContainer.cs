@@ -11,6 +11,8 @@ namespace PortAudio.Net
         private PaSampleFormat inputSampleFormat, outputSampleFormat;
         private int numInputChannels, numOutputChannels;
         private object userData;
+        
+        public _PaStreamCallback Callback { get; }
 
         public StreamCallbackContainer(
             PaStreamCallback callbackProvider,
@@ -23,9 +25,13 @@ namespace PortAudio.Net
             this.numInputChannels = numInputChannels;
             this.numOutputChannels = numOutputChannels;
             this.userData = userData;
+            unsafe
+            {
+                this.Callback = new _PaStreamCallback(CallbackMethod);
+            }
         }
 
-        public unsafe PaStreamCallbackResult Callback(
+        private unsafe PaStreamCallbackResult CallbackMethod(
             void* input, void* output,
             unsigned_long_t frameCount, IntPtr timeInfo,
             PaStreamCallbackFlags statusFlags, IntPtr garbage)
