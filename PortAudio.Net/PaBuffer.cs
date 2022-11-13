@@ -136,8 +136,6 @@ namespace PortAudio.Net
     public class PaBuffer<T>: PaBuffer where T: unmanaged
     {
 
-        #if NETCOREAPP
-
         /// <summary>
         /// Gets a span for the underlying memory backing the buffer.
         /// </summary>
@@ -155,8 +153,6 @@ namespace PortAudio.Net
                 }
             }
         }
-
-        #endif
 
         private unsafe int Size => Channels * Frames * sizeof(T);
 
