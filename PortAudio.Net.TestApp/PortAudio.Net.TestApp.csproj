@@ -7,4 +7,10 @@
   <ItemGroup>
     <ProjectReference Include="..\PortAudio.Net\PortAudio.Net.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="libportaudio.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

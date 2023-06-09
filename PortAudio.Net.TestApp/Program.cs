@@ -14,6 +14,7 @@ namespace PortAudio.Net.TestApp
 
             using (var paLibrary = PaLibrary.Initialize())
             {
+
                 PrintDevices(paLibrary);
                 
                 double sampleRate = 44100;
