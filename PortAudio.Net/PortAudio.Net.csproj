@@ -18,6 +18,7 @@ Modified work Copyright (c) 2019 Kyle Gagner
 
 Please note that the MIT license applies to the PortAudio Portable Real-Time Audio Library.
 Source code for PortAudio is available at portaudio.com.]]></Copyright>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
     <!--native runtimes may be included in the future-->
